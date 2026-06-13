@@ -1,0 +1,21 @@
+# Data and generated outputs are not version-controlled (see README for sources)
+data/interim/
+data/processed/
+data/raw/db1b/*
+data/raw/t100/*
+!data/raw/db1b/.gitkeep
+!data/raw/t100/.gitkeep
+outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
