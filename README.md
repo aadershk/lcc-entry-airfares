@@ -1,79 +1,41 @@
 # Heterogeneous Treatment Effects of Low-Cost Carrier Entry in US Airline Markets
 
-Code and reproduction steps for my MSc thesis (Data Science and Business
-Analytics, University of Amsterdam). The study measures how much low-cost carrier
-(LCC) entry lowers fares on US domestic routes, and shows that the effect is far
-from uniform. The entry-quarter effect averages a 10 percent fare reduction, but
-the route-level estimates range from about 16 percent on the shortest routes to
-3 percent on the longest. A single average hides most of what is going on, which
-is the point the thesis makes.
+> When a low-cost carrier enters a US route, fares fall about 10% on average. That average hides a wide range: roughly 16% on short, concentrated routes and about 3% on long, already-competitive ones.
 
-## What this is about
+This project measures the effect of low-cost carrier (LCC) entry on US domestic airfares and, more to the point, shows how that effect changes from route to route. It uses twenty quarters of public ticket and traffic data and a two-stage causal design.
 
-LCCs do not enter routes at random. They target dense, high-fare, concentrated
-corridors, so a plain before-and-after comparison confounds where carriers choose
-to enter with what entry does to price. Entry is also staggered across the panel,
-which biases the usual two-way fixed-effects estimator once effects change with
-time since entry. The design here corrects for both and then asks where the effect
-is largest.
+## The question
 
-Two datasets from the Bureau of Transportation Statistics cover 2015 Q1 to
-2019 Q4: the DB1B Market fare survey (a 10 percent sample of itineraries) and the
-T-100 Domestic Segment traffic file. After the fare and scheduled-service screens,
-the panel holds 1,327,550 directed market-quarter observations. A market is treated
-the first quarter any of five carriers enters a previously LCC-free route:
-Southwest (WN), JetBlue (B6), Spirit (NK), Frontier (F9), Allegiant (G4).
+Carriers like Spirit or Southwest do not enter routes at random. They go after busy, high-fare corridors where they can undercut the incumbent, so a plain comparison of "entered" against "not entered" routes confuses *where* they choose to fly with *what their arrival does to price*. The analysis separates those two things, then answers a sharper question than "does entry cut fares?":
 
-## Method
+**On which routes does entry cut fares the most, and by how much?**
 
-The analysis runs in two stages.
+In practical terms, a short hop such as Chicago to Detroit gets a much larger fare cut when an LCC arrives than a long, coast-to-coast route such as New York to Los Angeles.
 
-**Stage 1, PSM-DiD.** Each treated route (first entry in 2016 or later, so a full
-2015 baseline is observed) is matched 1:1 to a never-treated control on six
-pre-entry covariates: log fare, log passengers, log distance, HHI, carrier count,
-and the 2015 fare trajectory. Matching is nearest-neighbour on the propensity
-score and the covariates jointly, under a 0.2 standard-deviation caliper. A
-two-way fixed-effects event study on the matched panel, with never-treated routes
-as the only controls, gives the average treatment effect on the treated. Errors
-are clustered by route.
+## How it works
 
-**Stage 2, causal forest.** A `CausalForestDML` is fit on the matched
-cross-section with event-time-aligned pre/post windows, returning a conditional
-average treatment effect (CATE) per route. The systematic part of that variation
-is read off through group ATEs across quartiles, the forest's variable importance,
-and a best-linear-projection test.
+The data is a panel of 1.3 million route-quarter records built from two Bureau of Transportation Statistics sources covering 2015 to 2019: the DB1B ticket survey (fares) and the T-100 segment file (traffic). A route is "treated" the first quarter any of five carriers arrives where there was none before: Southwest, JetBlue, Spirit, Frontier, Allegiant.
 
-The pipeline follows the same order, stage by stage: parse DB1B and T-100, build
-the panel, match, run the event studies, fit the forest, run the robustness
-checks, and produce the fit diagnostics and descriptive figures.
+The estimate is built in two stages.
 
-## Main findings
+1. **Matched difference-in-differences.** Every entered route is paired with a similar route that never got an LCC, matched on six pre-entry features (fare, traffic, distance, market concentration, number of carriers, and recent fare trend). Tracking fares around entry for the matched pairs gives the average effect, with the selection problem and the bias from staggered entry timing removed.
+2. **Causal forest.** A machine-learning estimator (`CausalForestDML`) then estimates a separate effect for *every* route, so the single average can be opened up and explained by route characteristics.
 
-**Stage 1.** After matching, all six covariates balance to below 0.02 standardised
-mean difference, down from values above 1 before matching, and the propensity
-model separates entered from non-entered routes well (AUC 0.87). The entry-quarter
-ATT is a 10.0 percent fare reduction (-0.105 log points, clustered SE 0.008),
-averaging 8.1 percent across the nine post-entry quarters. Passenger traffic rises
-33.7 percent at entry. The pre-entry coefficients are small and point the opposite
-way to the effect, so the estimate reads as a conservative bound rather than an
-overstatement.
+## What it finds
 
-**Stage 2.** The route-level CATE distribution has a mean of -8.0 percent, with
-94.9 percent of routes negative, and the best-linear-projection test rejects the
-no-heterogeneity null for both outcomes (theta_1 = 1.62, t = 12.3, p < 0.001).
-Route distance is the dominant moderator, taking 74 percent of the forest's
-importance: mean fare reductions fall from 16.3 percent on the shortest-quartile
-routes to 3.1 percent on the longest, a 5.3-times gap. Market concentration adds a
-clean monotone gradient, from 3.7 percent in the least concentrated quartile to
-12.8 percent in the most. Pre-entry passenger density predicts where LCCs enter
-but barely moves the size of the fare effect once distance and concentration are
-held fixed.
+- **Fares drop about 10% in the quarter an LCC arrives** and stay down around 8% for two years. Passengers rise about 34%. The matched routes are nearly identical before entry, and the pre-entry trend runs *against* the effect, so 10% is a cautious estimate rather than an inflated one.
+- **Route distance explains most of the variation, about 74%.** Short routes lose roughly 16% of their fare, long routes only about 3%. Low-cost carriers have their biggest cost advantage on short, point-to-point hops.
+- **Market concentration matters next**, in a clean order: the most concentrated routes drop about 13%, the least about 4%. The more pricing power the incumbent had, the more room an entrant has to undercut.
+- **Busy routes attract LCCs but do not get bigger fare cuts** once distance and concentration are taken into account. Where carriers enter and how much fares fall are driven by different things.
+- **The result is stable.** Fake (placebo) entry dates show almost no effect, removing JetBlue barely changes it, and an independent short-against-long split reproduces the distance gap (about 15% against 5%). A best-linear-projection test confirms the route-to-route differences are systematic, not noise (t = 12.3).
 
-**Robustness.** A four-quarter placebo shift produces an entry-quarter coefficient
-an order of magnitude smaller than the real one. Rebuilding the treatment without
-JetBlue leaves the ATT at 9.4 percent. Splitting the matched panel at the median
-distance gives short- and long-haul ATTs of 14.7 and 4.8 percent, a 3.2-times gap
-that reproduces the forest's distance gradient through a separate estimator.
+![Fares around LCC entry, relative to the quarter before entry](outputs/figures/event_study_fare.png)
+
+*Fares are flat before entry, then drop sharply the quarter a carrier arrives and stay down.*
+
+![Fare effect by route distance quartile](outputs/figures/cate_by_distance.png)
+
+*The fare cut is largest on the shortest routes (left) and fades to almost nothing on the longest (right).*
 
 ## Repository layout
 
@@ -81,41 +43,34 @@ that reproduces the forest's distance gradient through a separate estimator.
 src/
   config.py          paths and fixed parameters
   data/
-    parse_db1b.py    DB1B Market zips -> carrier-quarter table
-    parse_t100.py    T-100 Segment zips -> carrier-quarter capacity
+    parse_db1b.py    DB1B ticket zips  -> carrier-quarter table
+    parse_t100.py    T-100 traffic zips -> carrier-quarter capacity
     build_panel.py   merge into the market-quarter panel
   matching.py        Stage 1a: propensity score matching
-  event_study.py     Stage 1b: TWFE event study (fare, passengers)
-  causal_forest.py   Stage 2: CATE, group ATEs, variable importance, BLP test
+  event_study.py     Stage 1b: event study (fares, passengers)
+  causal_forest.py   Stage 2: per-route effects, group summaries, validation
   robustness.py      placebo, JetBlue exclusion, distance subsample
-  diagnostics.py     model-fit metrics (AUC, within-R2, nuisance fit)
-  descriptives.py    descriptive and raw-trajectory figures
+  diagnostics.py     model-fit checks (AUC, within-R2, nuisance fit)
+  descriptives.py    descriptive figures
 run_pipeline.py      runs every stage in order
+outputs/             saved tables and figures (committed)
 ```
 
-## Reproducing the analysis
+## Reproduce it
 
-**Setup.** Python 3.11. Create an environment and install the pinned versions:
+**Setup** (Python 3.11):
 
 ```
 python -m venv .venv
-.venv\Scripts\activate        # Windows; use source .venv/bin/activate on macOS/Linux
+.venv\Scripts\activate        # Windows; on macOS/Linux use source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Data.** Both sources are free from BTS and are not stored in this repository.
-Download them and drop the zip files into `data/raw/db1b/` and `data/raw/t100/`.
-The parsers read every `.zip` in those folders, so the original BTS filenames are
-fine.
+**Get the data.** Both sources are free from BTS and are not stored here. Drop the
+zip files into `data/raw/db1b/` and `data/raw/t100/`. The parsers read every `.zip`
+in those folders, so the original BTS filenames are fine.
 
-DB1B Market (20 quarterly files, 2015 Q1 - 2019 Q4) can be pulled directly from
-the prezipped tables:
-
-```
-https://transtats.bts.gov/PREZIP/Origin_and_Destination_Survey_DB1BMarket_<YEAR>_<QUARTER>.zip
-```
-
-with `<YEAR>` from 2015 to 2019 and `<QUARTER>` from 1 to 4, for example:
+DB1B Market (twenty quarterly files) can be pulled directly:
 
 ```
 for y in 2015 2016 2017 2018 2019; do for q in 1 2 3 4; do
@@ -124,42 +79,25 @@ for y in 2015 2016 2017 2018 2019; do for q in 1 2 3 4; do
 done; done
 ```
 
-Alternatively, on the TranStats site go to Aviation -> *Airline Origin and
-Destination Survey (DB1B)* -> *DB1BMarket* and download each quarter.
+T-100 Domestic Segment comes from the TranStats site (Aviation, then Air Carrier
+Statistics, then T-100 Domestic Segment for U.S. Carriers). Download each year from
+2015 to 2019 with the fields `YEAR, MONTH, UNIQUE_CARRIER, ORIGIN, DEST, PASSENGERS,
+SEATS, DEPARTURES_PERFORMED, CLASS, ORIGIN_COUNTRY, DEST_COUNTRY`, and save the zips
+into `data/raw/t100/`.
 
-T-100 Domestic Segment (US carriers) comes from the same site, under Aviation ->
-*Air Carrier Statistics (Form 41 Traffic)* -> *T-100 Domestic Segment
-(U.S. Carriers)*. Select one year at a time (which returns all twelve months),
-keep the geography as all US, and include the fields:
-
-```
-YEAR, MONTH, UNIQUE_CARRIER, ORIGIN, DEST, PASSENGERS, SEATS,
-DEPARTURES_PERFORMED, CLASS, ORIGIN_COUNTRY, DEST_COUNTRY
-```
-
-Save each year 2015-2019 into `data/raw/t100/`.
-
-**Run.** With the raw data in place:
+**Run:**
 
 ```
 python run_pipeline.py
 ```
 
-The stages run in order. The causal forest is the slow one, roughly 30 minutes on
-a laptop, and the rest take a few minutes. To resume from a later stage, for
-example once the panel is already built:
+The stages run in order. The causal forest takes a few minutes and the rest are
+quick. Use `python run_pipeline.py --from matching` to resume once the panel is
+built, or run a single stage with, for example, `python -m src.matching`. Every
+random step uses seed 42, so a clean run reproduces the tables and figures in
+`outputs/`.
 
-```
-python run_pipeline.py --from matching
-```
+## License
 
-Individual stages also run on their own, for example `python -m src.matching`.
-
-## Outputs
-
-Coefficient tables and summaries are written to `outputs/tables/` (event-study
-estimates, CATE quartile summary, variable importance, BLP test, model-fit
-diagnostics, and the robustness results). Figures go to `outputs/figures/`, and
-the cleaned panel and route-level CATE estimates to `data/processed/`. Every
-stochastic step uses seed 42, so a clean run reproduces the numbers reported above
-and in the thesis.
+Released under the MIT License: anyone is free to use, modify, and build on this
+work. See [LICENSE](LICENSE).

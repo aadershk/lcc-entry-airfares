@@ -1,11 +1,11 @@
-# Data and generated outputs are not version-controlled (see README for sources)
-data/interim/
-data/processed/
+# Raw and intermediate data are not version-controlled (see README for sources).
+# The contents of outputs/ are committed so results are visible without a full run.
 data/raw/db1b/*
 data/raw/t100/*
 !data/raw/db1b/.gitkeep
 !data/raw/t100/.gitkeep
-outputs/
+data/interim/
+data/processed/
 
 # Python
 __pycache__/

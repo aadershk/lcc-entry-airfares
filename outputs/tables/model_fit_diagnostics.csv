@@ -1,0 +1,13 @@
+model,metric,value
+propensity_logit,n,46410.0
+propensity_logit,n_treated,2844.0
+propensity_logit,auc_in_sample,0.8673
+propensity_logit,auc_cv,0.8671
+propensity_logit,accuracy_cv,0.9414
+propensity_logit,brier_cv,0.0468
+propensity_logit,mcfadden_r2,0.2649
+twfe_fare,within_r2,0.0502
+twfe_pax,within_r2,0.0693
+dml_treatment,auc_oof,0.5863
+dml_outcome_fare,r2_oof,0.0917
+dml_outcome_pax,r2_oof,-0.0095
